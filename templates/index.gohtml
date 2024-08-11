@@ -1,0 +1,36 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8">
+	<title>Govels - A Shoddy Novel Library in Go</title>
+	<style>
+        textarea {
+            width: 100%;
+            height: 100px;
+        }
+
+        body {
+            background-color: #121212;
+            color: #ffffff;
+        }
+
+        textarea, select, button {
+            background-color: #333333;
+            color: #ffffff;
+            border: 1px solid #555555;
+        }
+	</style>
+</head>
+<body>
+<h1>Novels</h1>
+<ul>
+    {{range .Novels}}
+		<li>
+			<h2><a href="/novel/{{.Title}}">{{.Title}}</a></h2>
+			<p>Chapters: {{len .Chapters}}</p>
+		</li>
+    {{end}}
+</ul>
+</body>
+
+</html>

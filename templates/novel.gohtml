@@ -1,0 +1,228 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<title>Chapter Selection</title>
+
+	<style>
+        textarea {
+            width: 100%;
+            height: 300px;
+        }
+
+        body {
+            background-color: #121212;
+            color: #ffffff;
+        }
+
+        textarea, select, button {
+            background-color: #333333;
+            color: #ffffff;
+            border: 1px solid #555555;
+        }
+
+        .notification {
+            visibility: hidden;
+            min-width: 250px;
+            margin-left: -125px;
+            background-color: #4CAF50;
+            color: white;
+            text-align: center;
+            border-radius: 2px;
+            padding: 16px;
+            position: fixed;
+            z-index: 1;
+            left: 50%;
+            bottom: 30px;
+            font-size: 17px;
+        }
+
+        .notification.show {
+            visibility: visible;
+            -webkit-animation: fadein 0.5s, fadeout 0.5s 2.5s;
+            animation: fadein 0.5s, fadeout 0.5s 2.5s;
+        }
+
+        @-webkit-keyframes fadein {
+            from {
+                bottom: 0;
+                opacity: 0;
+            }
+            to {
+                bottom: 30px;
+                opacity: 1;
+            }
+        }
+
+        @keyframes fadein {
+            from {
+                bottom: 0;
+                opacity: 0;
+            }
+            to {
+                bottom: 30px;
+                opacity: 1;
+            }
+        }
+
+        @-webkit-keyframes fadeout {
+            from {
+                bottom: 30px;
+                opacity: 1;
+            }
+            to {
+                bottom: 0;
+                opacity: 0;
+            }
+        }
+
+        @keyframes fadeout {
+            from {
+                bottom: 30px;
+                opacity: 1;
+            }
+            to {
+                bottom: 0;
+                opacity: 0;
+            }
+        }
+	</style>
+</head>
+<body>
+<a href="/">Back to index</a>
+<h2>{{.Novel.Title}}</h2>
+<label for="chapterSelect">Select chapter: </label><select id="chapterSelect" onchange="chapterSelect()">
+    {{range .Novel.Chapters}}
+		<option>{{.}}</option>
+    {{end}}
+</select>
+<button type="button" onclick="addPrefix()">Save template, prefix and copy chapter</button>
+<br>
+<label for="prefixText">Prepend text: </label><textarea id="prefixText" placeholder="Enter text to prepend...">{{.PrefixText}}</textarea>
+<br>
+<button type="button" onclick="saveTemplate()">Save prefix template</button>
+<br>
+<div id="notification" class="notification"></div>
+</body>
+
+<script>
+
+    // Function to set a cookie
+    function setCookie(name, value, days) {
+        const d = new Date();
+        d.setTime(d.getTime() + (days * 24 * 60 * 60 * 1000));
+        const expires = "expires=" + d.toUTCString();
+        document.cookie = name + "=" + value + ";" + expires + ";path=/";
+    }
+
+    // Function to get a cookie by name
+    function getCookie(name) {
+        const nameEQ = name + "=";
+        const ca = document.cookie.split(';');
+        for (let i = 0; i < ca.length; i++) {
+            let c = ca[i];
+            while (c.charAt(0) === ' ') c = c.substring(1, c.length);
+            if (c.indexOf(nameEQ) === 0) return c.substring(nameEQ.length, c.length);
+        }
+        return null;
+    }
+
+    // Function to handle selection change
+    function chapterSelect() {
+        const selectElement = document.getElementById("chapterSelect");
+        const selectedValue = selectElement.value;
+        // TODO save on server instead of in cookie
+        // setCookie("selectedChapter", selectedValue, 7); // Save for 7 days
+        const baseUrl = window.location.origin; // Use the current origin
+        const url = new URL(`${baseUrl}/novel/select/{{.Novel.Title}}`);
+        console.log("saving chapter selected at " + url)
+        fetch(url, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded'
+            },
+            body: `chapter=${encodeURIComponent(selectedValue)}`
+        })
+        console.log("Chapter selected:", selectedValue);
+    }
+
+    // Function to load the selection from the cookie on page load
+    function loadSelection() {
+        // const selectedValue = getCookie("selectedChapter");
+        // if (selectedValue) {
+        //     const selectElement = document.getElementById("chapterSelect");
+        //     selectElement.value = selectedValue;
+        //     console.log("Loaded chapter:", selectedValue);
+        // }
+        const selectElement = document.getElementById("chapterSelect");
+        const baseUrl = window.location.origin; // Use the current origin
+        const url = new URL(`${baseUrl}/novel/select/{{.Novel.Title}}`);
+        fetch(url)
+            .then(response => response.text())
+            .then(value => {
+                console.log("Loaded selection for " + url + ", Selected " + value)
+                return selectElement.value = value;
+            })
+            .catch(err => console.error(err))
+    }
+
+    function addPrefix() {
+        const baseUrl = window.location.origin; // Use the current origin
+        const url = new URL(`${baseUrl}/novel/{{.Novel.Title}}`);
+        saveTemplate();
+        console.log("prepend something at " + url)
+        var file = document.getElementById("chapterSelect").value;
+        const params = {
+            chapter: file
+        };
+        Object.keys(params).forEach(key => url.searchParams.append(key, params[key]));
+
+        fetch(url)
+            .then(response => response.text())
+            .then(data => {
+                showNotification("Prefixed text and copied to clipboard!")
+                return navigator.clipboard.writeText(data);
+            })
+            .catch(error => console.error('Error: ', error))
+    }
+
+    function saveTemplate() {
+        const baseUrl = window.location.origin; // Use the current origin
+        const url = new URL(`${baseUrl}/novel/{{.Novel.Title}}`);
+        console.log("saving something at " + url)
+        const prefixText = document.getElementById('prefixText').value;
+        fetch(url, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded'
+            },
+            body: `prefixText=${encodeURIComponent(prefixText)}`
+        })
+            .then(response => response.text())
+            .then(message => {
+                console.log(message);
+                showNotification("Template saved successfully!");
+            })
+            .catch(error => {
+                console.error('Error saving template text:', error);
+                showNotification("Error saving template text.");
+            });
+        console.log("saved template")
+    }
+
+    function showNotification(message) {
+        const notification = document.getElementById('notification');
+        notification.textContent = message;
+        notification.className = "notification show";
+        setTimeout(() => {
+            notification.className = notification.className.replace("show", "");
+        }, 3000);
+    }
+
+
+    // Call loadSelection() on page load
+    window.onload = loadSelection;
+</script>
+
+</html>
