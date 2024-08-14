@@ -16,10 +16,52 @@
             color: #ffffff;
         }
 
-        textarea, select, button {
+        button {
             background-color: #333333;
             color: #ffffff;
             border: 1px solid #555555;
+            padding: 15px 32px;
+            text-align: center;
+            text-decoration: none;
+            display: inline-block;
+            font-size: unset;
+            margin: 4px 2px;
+            cursor: pointer;
+            transition: background-color 0.3s, box-shadow 0.3s, transform 0.3s;
+            transform-origin: center center; /* Ensure scaling happens from the center */
+        }
+
+        button:hover {
+            background-color: #3700b3; /* Darker shade of primary color */
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2); /* Shadow for hover effect */
+            transform: scale(1.05); /* Slightly expand the button */
+        }
+
+        button:active {
+            background-color: #03dac5; /* Accent color on click */
+            box-shadow: inset 0 3px 5px rgba(0, 0, 0, 0.3); /* Pressed-in effect */
+            transform: scale(0.95); /* Slightly shrink the button */
+            transition: background-color 0.1s, transform 0.1s; /* Faster transform and background-color for the active state */
+        }
+
+        select, button {
+            background-color: #333333;
+            color: #ffffff;
+            border: 1px solid #555555;
+            padding: 15px 32px;
+            text-align: center;
+            text-decoration: none;
+            display: inline-block;
+            font-size: unset;
+            margin: 4px 2px;
+            cursor: pointer;
+        }
+
+		textarea {
+            background-color: #333333;
+            color: #ffffff;
+            border: 1px solid #555555;
+            margin: 4px 2px;
         }
 
         .notification {
@@ -98,6 +140,8 @@
     {{end}}
 </select>
 <button type="button" onclick="addPrefix()">Save template, prefix and copy chapter</button>
+<button type="button" onclick="nextChapterAndAddPrefix()">Next Chapter and Add Prefix</button>
+<br>
 <br>
 <label for="prefixText">Prepend text: </label><textarea id="prefixText" placeholder="Enter text to prepend...">{{.PrefixText}}</textarea>
 <br>
@@ -107,7 +151,6 @@
 </body>
 
 <script>
-
     // Function to set a cookie
     function setCookie(name, value, days) {
         const d = new Date();
@@ -129,97 +172,120 @@
     }
 
     // Function to handle selection change
-    function chapterSelect() {
+    async function chapterSelect() {
         const selectElement = document.getElementById("chapterSelect");
         const selectedValue = selectElement.value;
         // TODO save on server instead of in cookie
         // setCookie("selectedChapter", selectedValue, 7); // Save for 7 days
         const baseUrl = window.location.origin; // Use the current origin
         const url = new URL(`${baseUrl}/novel/select/{{.Novel.Title}}`);
-        console.log("saving chapter selected at " + url)
-        fetch(url, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/x-www-form-urlencoded'
-            },
-            body: `chapter=${encodeURIComponent(selectedValue)}`
-        })
-        console.log("Chapter selected:", selectedValue);
+        console.log("saving chapter selected at " + url);
+
+        try {
+            await fetch(url, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded'
+                },
+                body: `chapter=${encodeURIComponent(selectedValue)}`
+            });
+            console.log("Chapter selected:", selectedValue);
+        } catch (error) {
+            console.error('Error selecting chapter:', error);
+        }
     }
 
-    // Function to load the selection from the cookie on page load
-    function loadSelection() {
-        // const selectedValue = getCookie("selectedChapter");
-        // if (selectedValue) {
-        //     const selectElement = document.getElementById("chapterSelect");
-        //     selectElement.value = selectedValue;
-        //     console.log("Loaded chapter:", selectedValue);
-        // }
+    // Function to load the selection from the server on page load
+    async function loadSelection() {
         const selectElement = document.getElementById("chapterSelect");
         const baseUrl = window.location.origin; // Use the current origin
         const url = new URL(`${baseUrl}/novel/select/{{.Novel.Title}}`);
-        fetch(url)
-            .then(response => response.text())
-            .then(value => {
-                console.log("Loaded selection for " + url + ", Selected " + value)
-                return selectElement.value = value;
-            })
-            .catch(err => console.error(err))
+
+        try {
+            const response = await fetch(url);
+            const value = await response.text();
+            console.log("Loaded selection for " + url + ", Selected " + value);
+            selectElement.value = value;
+        } catch (error) {
+            console.error('Error loading selection:', error);
+        }
     }
 
-    function addPrefix() {
-        const baseUrl = window.location.origin; // Use the current origin
-        const url = new URL(`${baseUrl}/novel/{{.Novel.Title}}`);
-        saveTemplate();
-        console.log("prepend something at " + url)
-        var file = document.getElementById("chapterSelect").value;
-        const params = {
-            chapter: file
-        };
-        Object.keys(params).forEach(key => url.searchParams.append(key, params[key]));
-
-        fetch(url)
-            .then(response => response.text())
-            .then(data => {
-                showNotification("Prefixed text and copied to clipboard!")
-                return navigator.clipboard.writeText(data);
-            })
-            .catch(error => console.error('Error: ', error))
+    async function nextChapterAndAddPrefix() {
+        const chapterSelector = document.getElementById('chapterSelect');
+        if (chapterSelector.selectedIndex < chapterSelector.options.length - 1) {
+            chapterSelector.selectedIndex += 1;
+        }
+        await chapterSelect();
+        await addPrefix();
     }
 
-    function saveTemplate() {
+    async function addPrefix() {
+        try {
+            const baseUrl = window.location.origin; // Use the current origin
+            const url = new URL(`${baseUrl}/novel/{{.Novel.Title}}`);
+            await saveTemplate();
+            console.log("prepend something at " + url);
+            const file = document.getElementById("chapterSelect").value;
+            const params = {chapter: file};
+            Object.keys(params).forEach(key => url.searchParams.append(key, params[key]));
+            const response = await fetch(url);
+            const data = await response.text();
+            await navigator.clipboard.writeText(data);
+            showNotification("Prefixed text and copied to clipboard!");
+        } catch (error) {
+            console.error('Error: ', error);
+        }
+    }
+
+    async function saveTemplate() {
         const baseUrl = window.location.origin; // Use the current origin
         const url = new URL(`${baseUrl}/novel/{{.Novel.Title}}`);
-        console.log("saving something at " + url)
+        console.log("saving something at " + url);
         const prefixText = document.getElementById('prefixText').value;
-        fetch(url, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/x-www-form-urlencoded'
-            },
-            body: `prefixText=${encodeURIComponent(prefixText)}`
-        })
-            .then(response => response.text())
-            .then(message => {
-                console.log(message);
-                showNotification("Template saved successfully!");
-            })
-            .catch(error => {
-                console.error('Error saving template text:', error);
-                showNotification("Error saving template text.");
+
+        try {
+            const response = await fetch(url, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded'
+                },
+                body: `prefixText=${encodeURIComponent(prefixText)}`
             });
-        console.log("saved template")
+            const message = await response.text();
+            console.log(message);
+            showNotification("Template saved successfully!");
+        } catch (error) {
+            console.error('Error saving template text:', error);
+            showNotification("Error saving template text.");
+        }
+        console.log("saved template");
     }
+
+    const notificationQueue = [];
+    let isShowing = false;
 
     function showNotification(message) {
+        notificationQueue.push(message);
+        processQueue();
+    }
+
+    function processQueue() {
+        if (isShowing || notificationQueue.length === 0) {
+            return;
+        }
+        isShowing = true;
+        const message = notificationQueue.shift();
         const notification = document.getElementById('notification');
         notification.textContent = message;
         notification.className = "notification show";
+
         setTimeout(() => {
             notification.className = notification.className.replace("show", "");
+            isShowing = false;
+            processQueue();
         }, 3000);
     }
-
 
     // Call loadSelection() on page load
     window.onload = loadSelection;
